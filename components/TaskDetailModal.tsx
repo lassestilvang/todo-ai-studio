@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, Flag, Clock, Plus, Trash2, Save, ListTodo, Activity, Tag, Palette, Check, Bell, Repeat, Paperclip, Link as LinkIcon, FileText, ExternalLink } from 'lucide-react';
+import { X, Calendar, Flag, Clock, Plus, Trash2, Save, ListTodo, Activity, Tag, Palette, Check, Bell, Repeat, Paperclip, Link as LinkIcon, FileText, ExternalLink, Timer, Siren } from 'lucide-react';
 import { Task, Priority, SubTask, Label, Reminder, Recurrence, RecurrenceUnit, Attachment, TaskList } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -330,6 +330,31 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 className="w-full bg-secondary/50 border border-transparent hover:bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all"
               />
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Siren className="w-3.5 h-3.5" /> Deadline
+              </label>
+              <input
+                type="date"
+                value={task.deadline ? task.deadline.split('T')[0] : ''}
+                onChange={(e) => handleUpdate({ deadline: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                className="w-full bg-secondary/50 border border-transparent hover:bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Timer className="w-3.5 h-3.5" /> Actual Time
+              </label>
+              <input
+                type="text"
+                value={task.actualTime || ''}
+                onChange={(e) => handleUpdate({ actualTime: e.target.value })}
+                placeholder="e.g. 2h 15m"
+                className="w-full bg-secondary/50 border border-transparent hover:bg-secondary rounded-lg px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all"
+              />
+            </div>
           </div>
 
           {/* Custom Recurrence Settings */}
@@ -623,21 +648,29 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     <div className="flex items-center gap-3">
                         <button
                         onClick={() => toggleSubtask(sub.id)}
-                        className={`w-4 h-4 rounded border flex items-center justify-center transition-all shrink-0 ${sub.completed ? 'bg-primary border-primary' : 'border-muted-foreground/40 hover:border-primary'}`}
+                        className={`w-4 h-4 rounded border flex items-center justify-center transition-all shrink-0 relative overflow-hidden ${sub.completed ? 'bg-primary border-primary' : 'border-muted-foreground/40 hover:border-primary'}`}
                         >
-                        <motion.div
-                            initial={false}
-                            animate={{ scale: sub.completed ? 1 : 0 }}
-                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        >
-                            <Check className="w-2.5 h-2.5 text-white stroke-[3px]" />
-                        </motion.div>
+                            <motion.div
+                                initial={false}
+                                animate={{ scale: sub.completed ? 1 : 0 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            >
+                                <Check className="w-2.5 h-2.5 text-white stroke-[3px]" />
+                            </motion.div>
+                            {sub.completed && (
+                                <motion.div
+                                    initial={{ scale: 0, opacity: 0.5 }}
+                                    animate={{ scale: 2, opacity: 0 }}
+                                    transition={{ duration: 0.5 }}
+                                    className="absolute inset-0 bg-white rounded-full"
+                                />
+                            )}
                         </button>
                         <input 
                         type="text" 
                         value={sub.title}
                         onChange={(e) => updateSubtask(sub.id, { title: e.target.value })}
-                        className={`flex-1 bg-transparent text-sm focus:outline-none ${sub.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+                        className={`flex-1 bg-transparent text-sm focus:outline-none transition-all ${sub.completed ? 'text-muted-foreground line-through opacity-70' : 'text-foreground'}`}
                         />
                         
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -727,3 +760,4 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     </div>
   );
 };
+    

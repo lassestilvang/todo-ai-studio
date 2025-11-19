@@ -24,6 +24,8 @@ interface SidebarProps {
   activeView: ViewType;
   onChangeView: (view: ViewType) => void;
   onAddList: (name: string, color: string, icon: string) => void;
+  onUpdateList: (id: string, updates: Partial<TaskList>) => void;
+  onDeleteList: (id: string) => void;
   onAddLabel: (name: string, color: string) => void;
   onUpdateLabel: (id: string, updates: Partial<Label>) => void;
   onDeleteLabel: (id: string) => void;
@@ -38,6 +40,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeView, 
   onChangeView, 
   onAddList,
+  onUpdateList,
+  onDeleteList,
   onAddLabel,
   onUpdateLabel,
   onDeleteLabel,

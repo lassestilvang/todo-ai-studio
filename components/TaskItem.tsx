@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { Check, Calendar, Flag, Clock, Bell, Repeat, AlertCircle } from 'lucide-react';
+import { Check, Calendar, Flag, Clock, Bell, Repeat, AlertCircle, Siren, Timer } from 'lucide-react';
 import { Task, Priority, Label, Recurrence } from '../types';
 import { motion } from 'framer-motion';
 
@@ -173,10 +173,26 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onSelect, al
             </div>
           )}
           
+          {task.deadline && (
+             <div className="flex items-center gap-1.5 text-xs text-red-500/80 font-medium" title="Deadline">
+               <Siren className="w-3.5 h-3.5" />
+               <span>
+                 {new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+               </span>
+             </div>
+          )}
+          
           {task.estimate && (
              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="w-3.5 h-3.5" />
                 <span>{task.estimate}</span>
+             </div>
+          )}
+          
+          {task.actualTime && (
+             <div className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Actual time spent">
+                <Timer className="w-3.5 h-3.5" />
+                <span>{task.actualTime}</span>
              </div>
           )}
 
@@ -190,3 +206,4 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onSelect, al
     </motion.div>
   );
 };
+    

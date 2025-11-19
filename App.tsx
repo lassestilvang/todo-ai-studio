@@ -1,11 +1,11 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TaskItem } from './components/TaskItem';
 import { SmartInput } from './components/SmartInput';
 import { TaskDetailModal } from './components/TaskDetailModal';
 import { Task, TaskList, ViewType, Priority, Recurrence, Label, RecurrenceUnit, TaskLog } from './types';
-import { Search, Sun, Moon, Menu, Tag, Bell, History, User, Clock, Activity, CheckCircle2, Circle } from 'lucide-react';
+import { Search, Sun, Moon, Menu, Tag, Bell, History, User, Clock, Activity, CheckCircle2, Circle, ArrowUpDown, Check } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 // Initial Mock Data
@@ -20,6 +20,8 @@ const INITIAL_LABELS: Label[] = [
   { id: 'design', name: 'Design', color: '#8b5cf6' },
   { id: 'dev', name: 'Dev', color: '#10b981' },
 ];
+
+type SortOption = 'smart' | 'dueDate' | 'priority' | 'added' | 'alphabetical';
 
 // Helper to check if date is today
 const isToday = (dateString?: string) => {
@@ -106,6 +108,11 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  
+  // Sorting State
+  const [sortBy, setSortBy] = useState<SortOption>('smart');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
 
   // Theme Effect
   useEffect(() => {
@@ -126,6 +133,17 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('zentask_labels', JSON.stringify(labels));
   }, [labels]);
+
+  // Click outside sort menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+            setShowSortMenu(false);
+        }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Reminder Check Logic
   useEffect(() => {
@@ -174,7 +192,7 @@ export default function App() {
   const handleAddTask = (newTaskPartial: Partial<Task>) => {
     const newTask: Task = {
       id: crypto.randomUUID(),
-      listId: activeView === 'inbox' || activeView === 'today' || activeView === 'next7' || activeView === 'upcoming' || activeView === 'all' || activeView === 'activity' ? 'inbox' : activeView,
+      listId: activeView === 'inbox' || activeView === 'today' || activeView === 'next7' || activeView === 'upcoming' || activeView === 'all' || activeView === 'activity' || activeView === 'search' ? 'inbox' : activeView,
       title: newTaskPartial.title || 'Untitled Task',
       description: newTaskPartial.description,
       completed: false,
@@ -276,6 +294,15 @@ export default function App() {
                  addLog(`Removed due date`);
             }
         }
+        // Deadline
+        if (t.deadline !== updatedTask.deadline) {
+            if (updatedTask.deadline) {
+                 const dateStr = new Date(updatedTask.deadline).toLocaleDateString();
+                 addLog(t.deadline ? `Changed deadline to ${dateStr}` : `Set deadline to ${dateStr}`);
+            } else {
+                 addLog(`Removed deadline`);
+            }
+        }
         // Priority
         if (t.priority !== updatedTask.priority) {
             addLog(`Changed priority from ${t.priority} to ${updatedTask.priority}`);
@@ -290,6 +317,11 @@ export default function App() {
         if (t.estimate !== updatedTask.estimate) {
             if (updatedTask.estimate) addLog(`Set estimate to ${updatedTask.estimate}`);
             else addLog(`Removed estimate`);
+        }
+        // Actual Time
+        if (t.actualTime !== updatedTask.actualTime) {
+            if (updatedTask.actualTime) addLog(`Logged actual time: ${updatedTask.actualTime}`);
+            else addLog(`Removed actual time log`);
         }
         
         // Diff Labels
@@ -341,7 +373,7 @@ export default function App() {
             }
         });
 
-        // Check for deleted subtasks
+        // Check for removed subtasks
         oldSubtasks.forEach(os => {
             if (!newSubtasksMap.has(os.id)) {
                 addLog(`Deleted subtask: "${os.title}"`);
@@ -373,6 +405,17 @@ export default function App() {
   // Lists & Labels Handlers
   const handleAddList = (name: string, color: string, icon: string) => {
     setLists(prev => [...prev, { id: crypto.randomUUID(), name, color, icon }]);
+  };
+
+  const handleUpdateList = (id: string, updates: Partial<TaskList>) => {
+    setLists(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+  };
+
+  const handleDeleteList = (id: string) => {
+    setLists(prev => prev.filter(l => l.id !== id));
+    // Move tasks from deleted list to inbox
+    setTasks(prev => prev.map(t => t.listId === id ? { ...t, listId: 'inbox' } : t));
+    if (activeView === id) setActiveView('inbox');
   };
 
   const handleAddLabel = (name: string, color: string) => {
@@ -414,68 +457,108 @@ export default function App() {
   }, [tasks, lists, labels]);
 
   // Derived State for Views
-  const filteredTasks = useMemo(() => {
+  const filteredTasks = useMemo<Task[]>(() => {
     if (activeView === 'activity') return [];
 
-    let filtered = tasks;
+    let filtered: Task[] = tasks;
 
-    // Check if activeView is a label ID
-    const isLabelView = labels.some(l => l.id === activeView);
-
-    if (isLabelView) {
-      filtered = filtered.filter(t => t.labelIds?.includes(activeView) && !t.completed);
+    if (activeView === 'search') {
+        // Global Search Logic
+        if (searchQuery) {
+            const lowerQ = searchQuery.toLowerCase();
+            filtered = filtered.filter(t => 
+                t.title.toLowerCase().includes(lowerQ) || 
+                t.description?.toLowerCase().includes(lowerQ)
+            );
+        } else {
+            // If no query, maybe return nothing or all? Returning all for now, but visually implied search is active.
+            // Or stay empty to encourage typing.
+        }
     } else {
-      switch (activeView) {
-        case 'inbox':
-          filtered = filtered.filter(t => t.listId === 'inbox' && !t.completed);
-          break;
-        case 'today':
-          filtered = filtered.filter(t => isToday(t.dueDate) && !t.completed);
-          break;
-        case 'next7':
-          filtered = filtered.filter(t => isNext7Days(t.dueDate) && !t.completed);
-          break;
-        case 'upcoming':
-          filtered = filtered.filter(t => t.dueDate && new Date(t.dueDate) > new Date() && !t.completed);
-          break;
-        case 'all':
-          break;
-        default:
-          // Custom List View
-          filtered = filtered.filter(t => t.listId === activeView && !t.completed);
-      }
+        // Standard View Filtering
+        
+        // Check if activeView is a label ID
+        const isLabelView = labels.some(l => l.id === activeView);
+
+        if (isLabelView) {
+        filtered = filtered.filter(t => t.labelIds?.includes(activeView) && !t.completed);
+        } else {
+        switch (activeView) {
+            case 'inbox':
+            filtered = filtered.filter(t => t.listId === 'inbox' && !t.completed);
+            break;
+            case 'today':
+            filtered = filtered.filter(t => isToday(t.dueDate) && !t.completed);
+            break;
+            case 'next7':
+            filtered = filtered.filter(t => isNext7Days(t.dueDate) && !t.completed);
+            break;
+            case 'upcoming':
+            filtered = filtered.filter(t => t.dueDate && new Date(t.dueDate) > new Date() && !t.completed);
+            break;
+            case 'all':
+            break;
+            default:
+            // Custom List View
+            filtered = filtered.filter(t => t.listId === activeView && !t.completed);
+        }
+        }
     }
 
-    if (searchQuery) {
-      const lowerQ = searchQuery.toLowerCase();
-      filtered = filtered.filter(t => 
-        t.title.toLowerCase().includes(lowerQ) || 
-        t.description?.toLowerCase().includes(lowerQ)
-      );
-    }
+    // Sorting Logic
+    const prioOrder = { [Priority.High]: 3, [Priority.Medium]: 2, [Priority.Low]: 1, [Priority.None]: 0 };
 
-    return filtered.sort((a, b) => {
-      // Completed last
+    // Use a copy to sort to avoid mutating state reference, and add explicit types to callback arguments
+    return [...filtered].sort((a: Task, b: Task) => {
+      // Always put completed tasks at the bottom if the view shows them (mostly handled by filtering, but good for 'all' view completeness)
       if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      
-      // Priority first
-      const prioOrder = { [Priority.High]: 3, [Priority.Medium]: 2, [Priority.Low]: 1, [Priority.None]: 0 };
-      if (prioOrder[b.priority] !== prioOrder[a.priority]) {
-        return prioOrder[b.priority] - prioOrder[a.priority];
+
+      switch (sortBy) {
+        case 'dueDate':
+          // Earliest due date first
+          if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+          // Items with due date come before items without
+          if (a.dueDate) return -1;
+          if (b.dueDate) return 1;
+          return 0;
+        
+        case 'priority':
+          // High to Low
+          if (prioOrder[b.priority] !== prioOrder[a.priority]) {
+            return prioOrder[b.priority] - prioOrder[a.priority];
+          }
+          return 0;
+        
+        case 'added':
+          // Newest first
+          return b.createdAt - a.createdAt;
+
+        case 'alphabetical':
+          // A-Z
+          return a.title.localeCompare(b.title);
+
+        case 'smart':
+        default:
+          // 1. Priority
+          if (prioOrder[b.priority] !== prioOrder[a.priority]) {
+            return prioOrder[b.priority] - prioOrder[a.priority];
+          }
+          // 2. Due Date (Earliest first)
+          if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+          if (a.dueDate) return -1;
+          if (b.dueDate) return 1;
+          return 0;
       }
-      // Date ascending
-      if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      return 0;
     });
-  }, [tasks, activeView, labels, searchQuery]);
+  }, [tasks, activeView, labels, searchQuery, sortBy]);
 
   // Activity View Data Aggregation
   const groupedActivityLogs = useMemo(() => {
-    if (activeView !== 'activity') return {};
+    type ActivityLogItem = TaskLog & { taskTitle: string; taskColor?: string; taskId: string };
 
-    const allLogs = tasks.flatMap(task => 
+    if (activeView !== 'activity') return {} as Record<string, ActivityLogItem[]>;
+
+    const allLogs: ActivityLogItem[] = tasks.flatMap(task => 
       task.logs.map(log => ({
         ...log,
         taskTitle: task.title,
@@ -484,7 +567,7 @@ export default function App() {
       }))
     ).sort((a, b) => b.timestamp - a.timestamp);
 
-    const groups: Record<string, typeof allLogs> = {};
+    const groups: Record<string, ActivityLogItem[]> = {};
 
     allLogs.forEach(log => {
       const date = new Date(log.timestamp);
@@ -516,6 +599,7 @@ export default function App() {
     if (activeView === 'upcoming') return 'Upcoming';
     if (activeView === 'all') return 'All Tasks';
     if (activeView === 'activity') return 'Activity Log';
+    if (activeView === 'search') return 'Search Results';
     
     const list = lists.find(l => l.id === activeView);
     if (list) return list.name;
@@ -525,6 +609,16 @@ export default function App() {
     
     return 'Tasks';
   }, [activeView, lists, labels]);
+
+  const SortMenuItem = ({ option, label }: { option: SortOption, label: string }) => (
+    <button 
+      onClick={() => { setSortBy(option); setShowSortMenu(false); }}
+      className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center justify-between transition-colors ${sortBy === option ? 'bg-primary/10 text-primary' : 'hover:bg-secondary text-foreground'}`}
+    >
+      <span>{label}</span>
+      {sortBy === option && <Check className="w-4 h-4" />}
+    </button>
+  );
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -536,6 +630,8 @@ export default function App() {
           activeView={activeView} 
           onChangeView={setActiveView} 
           onAddList={handleAddList}
+          onUpdateList={handleUpdateList}
+          onDeleteList={handleDeleteList}
           onAddLabel={handleAddLabel}
           onUpdateLabel={handleUpdateLabel}
           onDeleteLabel={handleDeleteLabel}
@@ -567,6 +663,8 @@ export default function App() {
                 activeView={activeView} 
                 onChangeView={(v) => { setActiveView(v); setIsMobileSidebarOpen(false); }} 
                 onAddList={handleAddList}
+                onUpdateList={handleUpdateList}
+                onDeleteList={handleDeleteList}
                 onAddLabel={handleAddLabel}
                 onUpdateLabel={handleUpdateLabel}
                 onDeleteLabel={handleDeleteLabel}
@@ -601,20 +699,56 @@ export default function App() {
                 <p className="text-xs text-muted-foreground mt-0.5">
                     {activeView === 'activity' 
                       ? 'Track history across all tasks' 
-                      : `${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`
+                      : activeView === 'search'
+                        ? `Found ${filteredTasks.length} tasks`
+                        : `${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`
                     }
                 </p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Sort Control */}
+            <div className="relative" ref={sortMenuRef}>
+                <button 
+                    onClick={() => setShowSortMenu(!showSortMenu)}
+                    className={`p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors ${showSortMenu ? 'bg-secondary text-foreground' : ''}`}
+                    title="Sort tasks"
+                >
+                    <ArrowUpDown className="w-5 h-5" />
+                </button>
+                <AnimatePresence>
+                    {showSortMenu && (
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="absolute top-full right-0 mt-2 w-48 bg-popover border border-border rounded-xl shadow-xl p-1.5 z-50"
+                        >
+                            <div className="text-xs font-semibold text-muted-foreground px-3 py-2 uppercase tracking-wider">Sort By</div>
+                            <SortMenuItem option="smart" label="Smart (Default)" />
+                            <SortMenuItem option="priority" label="Priority" />
+                            <SortMenuItem option="dueDate" label="Due Date" />
+                            <SortMenuItem option="added" label="Date Added" />
+                            <SortMenuItem option="alphabetical" label="Alphabetical" />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
             <div className="relative hidden sm:block group">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <input 
                 type="text"
-                placeholder="Search tasks..."
+                placeholder="Search everywhere..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                    const q = e.target.value;
+                    setSearchQuery(q);
+                    if (q && activeView !== 'search') {
+                        setActiveView('search');
+                    }
+                }}
                 className="pl-9 pr-4 py-2 bg-secondary/50 border border-transparent rounded-xl text-sm focus:bg-background focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all w-64"
               />
             </div>
@@ -726,13 +860,27 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center py-20"
                     >
-                    <div className="w-24 h-24 bg-secondary/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <div className="text-4xl opacity-50">✨</div>
-                    </div>
-                    <h3 className="text-lg font-medium text-foreground">All caught up!</h3>
-                    <p className="text-muted-foreground text-sm max-w-xs mx-auto mt-2">
-                        You have no tasks for this view. Enjoy your day or add a new task above.
-                    </p>
+                    {activeView === 'search' ? (
+                         <>
+                             <div className="w-24 h-24 bg-secondary/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Search className="w-10 h-10 opacity-50" />
+                            </div>
+                            <h3 className="text-lg font-medium text-foreground">No results found</h3>
+                            <p className="text-muted-foreground text-sm max-w-xs mx-auto mt-2">
+                                Try searching for something else.
+                            </p>
+                         </>
+                    ) : (
+                        <>
+                            <div className="w-24 h-24 bg-secondary/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <div className="text-4xl opacity-50">✨</div>
+                            </div>
+                            <h3 className="text-lg font-medium text-foreground">All caught up!</h3>
+                            <p className="text-muted-foreground text-sm max-w-xs mx-auto mt-2">
+                                You have no tasks for this view. Enjoy your day or add a new task above.
+                            </p>
+                        </>
+                    )}
                     </motion.div>
                 )}
                 </AnimatePresence>
@@ -761,3 +909,4 @@ export default function App() {
     </div>
   );
 }
+    
