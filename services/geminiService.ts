@@ -2,11 +2,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { AISuggestedTask, Priority } from "../types";
 
 // Initialize Gemini AI
-// NOTE: In a real environment, this key must be in process.env. 
-// The system prompt guarantees process.env.API_KEY availability.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// NOTE: In a real environment, this key must be in process.env.API_KEY
+const apiKey = process.env.API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const parseTaskWithGemini = async (input: string): Promise<AISuggestedTask | null> => {
+  if (!ai) {
+    console.warn("Gemini AI not available - API key not configured");
+    return null;
+  }
+
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
