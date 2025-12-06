@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Calendar, 
@@ -8,15 +9,15 @@ import {
   List, 
   Plus,
   Tag,
-  MoreHorizontal,
   Edit2,
   Trash2,
   Settings,
   Zap,
-  History
+  History,
+  User
 } from 'lucide-react';
 import { TaskList, ViewType, Label } from '../types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface SidebarProps {
   lists: TaskList[];
@@ -30,6 +31,7 @@ interface SidebarProps {
   onUpdateLabel: (id: string, updates: Partial<Label>) => void;
   onDeleteLabel: (id: string) => void;
   taskCounts: Record<string, number>;
+  onOpenSettings: () => void;
 }
 
 const LABEL_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
@@ -40,12 +42,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeView, 
   onChangeView, 
   onAddList,
-  onUpdateList,
   onDeleteList,
   onAddLabel,
   onUpdateLabel,
   onDeleteLabel,
-  taskCounts
+  taskCounts,
+  onOpenSettings
 }) => {
   const [isCreatingList, setIsCreatingList] = useState(false);
   const [newListName, setNewListName] = useState('');
@@ -286,7 +288,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
       
       <div className="p-4 border-t border-border/50">
-        <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-purple-500/10 border border-primary/10 mb-2">
+        <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-purple-500/10 border border-primary/10 mb-4">
            <div className="flex items-center gap-2 text-xs font-medium text-primary mb-1">
               <Zap className="w-3 h-3 fill-primary" />
               <span>Pro Tip</span>
@@ -296,14 +298,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
            </p>
         </div>
         
-        <div className="flex items-center justify-between text-xs text-muted-foreground px-2 mt-4">
-            <div className="flex items-center gap-2">
-               <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center">
-                  <Settings className="w-3 h-3" />
-               </div>
-               <span>Settings</span>
-            </div>
-            <span>v1.1</span>
+        {/* User & Settings */}
+        <div className="flex items-center justify-between px-2">
+             <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium shadow-lg shadow-purple-500/20 ring-2 ring-background">
+                    <User className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-xs font-medium text-foreground">My Profile</span>
+                    <span className="text-[10px] text-muted-foreground">Free Plan</span>
+                </div>
+             </div>
+             
+             <button 
+               onClick={onOpenSettings}
+               className="p-2 rounded-lg bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all border border-transparent hover:border-border"
+               title="Settings"
+             >
+               <Settings className="w-4 h-4" />
+             </button>
         </div>
       </div>
     </div>

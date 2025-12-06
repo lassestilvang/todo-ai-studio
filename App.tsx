@@ -4,8 +4,9 @@ import { Sidebar } from './components/Sidebar';
 import { TaskItem } from './components/TaskItem';
 import { SmartInput } from './components/SmartInput';
 import { TaskDetailModal } from './components/TaskDetailModal';
+import { SettingsModal } from './components/SettingsModal';
 import { Task, TaskList, ViewType, Priority, Recurrence, Label, RecurrenceUnit, TaskLog } from './types';
-import { Search, Sun, Moon, Menu, Tag, Bell, History, User, Clock, Activity, CheckCircle2, Circle, ArrowUpDown, Check } from 'lucide-react';
+import { Search, Menu, Activity, CheckCircle2, Circle, ArrowUpDown, Check } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 // Initial Mock Data
@@ -108,6 +109,7 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // Sorting State
   const [sortBy, setSortBy] = useState<SortOption>('smart');
@@ -433,6 +435,58 @@ export default function App() {
     if (activeView === id) setActiveView('inbox');
   };
 
+  // Settings Handlers
+  const handleExportData = () => {
+      const data = {
+          version: 1,
+          timestamp: Date.now(),
+          tasks,
+          lists,
+          labels,
+          theme
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `zentask-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          try {
+              const result = e.target?.result as string;
+              const data = JSON.parse(result);
+              
+              if (data.tasks && Array.isArray(data.tasks)) setTasks(data.tasks);
+              if (data.lists && Array.isArray(data.lists)) setLists(data.lists);
+              if (data.labels && Array.isArray(data.labels)) setLabels(data.labels);
+              if (data.theme && (data.theme === 'dark' || data.theme === 'light')) setTheme(data.theme);
+              
+              alert('Data imported successfully!');
+              setIsSettingsOpen(false);
+          } catch (error) {
+              alert('Failed to import data. Invalid JSON format.');
+              console.error('Import error:', error);
+          }
+      };
+      reader.readAsText(file);
+  };
+
+  const handleClearData = () => {
+      setTasks([]);
+      setLists(INITIAL_LISTS);
+      setLabels(INITIAL_LABELS);
+      setActiveView('inbox');
+      setIsSettingsOpen(false);
+  };
+
   // Counts
   const taskCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -636,6 +690,7 @@ export default function App() {
           onUpdateLabel={handleUpdateLabel}
           onDeleteLabel={handleDeleteLabel}
           taskCounts={taskCounts}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
       </div>
 
@@ -669,6 +724,7 @@ export default function App() {
                 onUpdateLabel={handleUpdateLabel}
                 onDeleteLabel={handleDeleteLabel}
                 taskCounts={taskCounts}
+                onOpenSettings={() => { setIsSettingsOpen(true); setIsMobileSidebarOpen(false); }}
               />
             </motion.div>
           </>
@@ -753,16 +809,6 @@ export default function App() {
               />
             </div>
             
-            <button 
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
-            
-            <button className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium shadow-lg shadow-purple-500/20">
-                <User className="w-4 h-4" />
-            </button>
           </div>
         </header>
 
@@ -906,7 +952,21 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {isSettingsOpen && (
+            <SettingsModal
+              isOpen={isSettingsOpen}
+              onClose={() => setIsSettingsOpen(false)}
+              theme={theme}
+              onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              onExportData={handleExportData}
+              onImportData={handleImportData}
+              onClearData={handleClearData}
+            />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-    
