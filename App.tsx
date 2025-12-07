@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TaskItem } from './components/TaskItem';
@@ -8,6 +7,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { Task, TaskList, ViewType, Priority, Recurrence, Label, RecurrenceUnit, TaskLog } from './types';
 import { Search, Menu, Activity, CheckCircle2, Circle, ArrowUpDown, Check } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+
+// ... (Existing Imports and Interfaces) ...
 
 // Initial Mock Data
 const INITIAL_LISTS: TaskList[] = [
@@ -252,7 +253,7 @@ export default function App() {
             dueDate: nextDate.toISOString(),
             // Clear reminders for the new instance as they are date-specific
             reminders: [],
-            attachments: [], // Should recurring tasks inherit attachments? Usually no for new files, maybe yes for context. Let's assume clear for clean slate.
+            attachments: [], 
             // Reset logs for the new task
             logs: [{
               id: crypto.randomUUID(),
@@ -279,30 +280,40 @@ export default function App() {
 
         // Title
         if (t.title !== updatedTask.title) {
-             addLog(`Renamed to "${updatedTask.title}"`);
+             addLog(`Renamed task from "${t.title}" to "${updatedTask.title}"`);
         }
         // Description
         if (t.description !== updatedTask.description) {
-            if (!t.description && updatedTask.description) addLog(`Added description`);
+            if (!t.description && updatedTask.description) addLog(`Added description: "${updatedTask.description.substring(0, 30)}${updatedTask.description.length > 30 ? '...' : ''}"`);
             else if (t.description && !updatedTask.description) addLog(`Removed description`);
             else addLog(`Updated description`);
         }
         // Due Date
         if (t.dueDate !== updatedTask.dueDate) {
-            if (updatedTask.dueDate) {
+            if (updatedTask.dueDate && !t.dueDate) {
                  const dateStr = new Date(updatedTask.dueDate).toLocaleDateString();
-                 addLog(t.dueDate ? `Rescheduled to ${dateStr}` : `Set due date to ${dateStr}`);
-            } else {
-                 addLog(`Removed due date`);
+                 addLog(`Set due date to ${dateStr}`);
+            } else if (!updatedTask.dueDate && t.dueDate) {
+                 const dateStr = new Date(t.dueDate).toLocaleDateString();
+                 addLog(`Removed due date ${dateStr}`);
+            } else if (updatedTask.dueDate && t.dueDate) {
+                 const oldDate = new Date(t.dueDate).toLocaleDateString();
+                 const newDate = new Date(updatedTask.dueDate).toLocaleDateString();
+                 addLog(`Changed due date from ${oldDate} to ${newDate}`);
             }
         }
         // Deadline
         if (t.deadline !== updatedTask.deadline) {
-            if (updatedTask.deadline) {
+            if (updatedTask.deadline && !t.deadline) {
                  const dateStr = new Date(updatedTask.deadline).toLocaleDateString();
-                 addLog(t.deadline ? `Changed deadline to ${dateStr}` : `Set deadline to ${dateStr}`);
-            } else {
-                 addLog(`Removed deadline`);
+                 addLog(`Set deadline to ${dateStr}`);
+            } else if (!updatedTask.deadline && t.deadline) {
+                 const dateStr = new Date(t.deadline).toLocaleDateString();
+                 addLog(`Removed deadline ${dateStr}`);
+            } else if (updatedTask.deadline && t.deadline) {
+                 const oldDate = new Date(t.deadline).toLocaleDateString();
+                 const newDate = new Date(updatedTask.deadline).toLocaleDateString();
+                 addLog(`Changed deadline from ${oldDate} to ${newDate}`);
             }
         }
         // Priority
@@ -313,17 +324,19 @@ export default function App() {
         if (t.listId !== updatedTask.listId) {
             const oldList = lists.find(l => l.id === t.listId)?.name || 'Inbox';
             const newList = lists.find(l => l.id === updatedTask.listId)?.name || 'Inbox';
-            addLog(`Moved from ${oldList} to ${newList}`);
+            addLog(`Moved from list "${oldList}" to "${newList}"`);
         }
         // Estimate
         if (t.estimate !== updatedTask.estimate) {
-            if (updatedTask.estimate) addLog(`Set estimate to ${updatedTask.estimate}`);
-            else addLog(`Removed estimate`);
+            if (updatedTask.estimate && !t.estimate) addLog(`Set estimate to ${updatedTask.estimate}`);
+            else if (!updatedTask.estimate && t.estimate) addLog(`Removed estimate ${t.estimate}`);
+            else if (updatedTask.estimate && t.estimate) addLog(`Changed estimate from ${t.estimate} to ${updatedTask.estimate}`);
         }
         // Actual Time
         if (t.actualTime !== updatedTask.actualTime) {
-            if (updatedTask.actualTime) addLog(`Logged actual time: ${updatedTask.actualTime}`);
-            else addLog(`Removed actual time log`);
+            if (updatedTask.actualTime && !t.actualTime) addLog(`Logged actual time: ${updatedTask.actualTime}`);
+            else if (!updatedTask.actualTime && t.actualTime) addLog(`Removed actual time log`);
+            else if (updatedTask.actualTime && t.actualTime) addLog(`Changed actual time from ${t.actualTime} to ${updatedTask.actualTime}`);
         }
         
         // Diff Labels
@@ -355,22 +368,39 @@ export default function App() {
         // Check for added and modified subtasks
         newSubtasks.forEach(ns => {
             if (!oldSubtasksMap.has(ns.id)) {
+                // Added
                 addLog(`Added subtask: "${ns.title}"`);
             } else {
+                // Modified
                 const os = oldSubtasksMap.get(ns.id)!;
+                
                 // Completion status
                 if (os.completed !== ns.completed) {
-                     addLog(`${ns.completed ? 'Completed' : 'Uncompleted'} subtask: "${ns.title}"`);
+                     if (ns.completed) {
+                         addLog(`Completed subtask: "${ns.title}"`);
+                     } else {
+                         addLog(`Uncompleted subtask: "${ns.title}"`);
+                     }
                 }
+                
                 // Title change
                 if (os.title !== ns.title) {
-                    addLog(`Renamed subtask to "${ns.title}"`);
+                    addLog(`Renamed subtask from "${os.title}" to "${ns.title}"`);
                 }
+                
                 // Due Date change
                 if (os.dueDate !== ns.dueDate) {
-                     if (ns.dueDate && !os.dueDate) addLog(`Set due date for subtask "${ns.title}"`);
-                     else if (!ns.dueDate && os.dueDate) addLog(`Removed due date from subtask "${ns.title}"`);
-                     else if (ns.dueDate && os.dueDate) addLog(`Rescheduled subtask "${ns.title}"`);
+                     if (ns.dueDate && !os.dueDate) {
+                         const d = new Date(ns.dueDate).toLocaleDateString();
+                         addLog(`Set due date for subtask "${ns.title}" to ${d}`);
+                     }
+                     else if (!ns.dueDate && os.dueDate) {
+                         addLog(`Removed due date from subtask "${ns.title}"`);
+                     }
+                     else if (ns.dueDate && os.dueDate) {
+                         const d = new Date(ns.dueDate).toLocaleDateString();
+                         addLog(`Rescheduled subtask "${ns.title}" to ${d}`);
+                     }
                 }
             }
         });
@@ -392,8 +422,14 @@ export default function App() {
 
         // Combine: Old Logs + Meaningful Modal Logs + New Specific Logs
         const finalLogs = [...t.logs, ...meaningfulLogsFromModal, ...newLogs];
+        const newT = { ...updatedTask, logs: finalLogs };
 
-        return { ...updatedTask, logs: finalLogs };
+        // Update selectedTask if it is the one being edited to reflect changes in the modal (especially new logs)
+        if (selectedTask?.id === t.id) {
+            setSelectedTask(newT);
+        }
+
+        return newT;
       }
       return t;
     }));
@@ -517,87 +553,69 @@ export default function App() {
     let filtered: Task[] = tasks;
 
     if (activeView === 'search') {
-        // Global Search Logic
         if (searchQuery) {
             const lowerQ = searchQuery.toLowerCase();
             filtered = filtered.filter(t => 
                 t.title.toLowerCase().includes(lowerQ) || 
                 t.description?.toLowerCase().includes(lowerQ)
             );
-        } else {
-            // If no query, maybe return nothing or all? Returning all for now, but visually implied search is active.
-            // Or stay empty to encourage typing.
         }
     } else {
-        // Standard View Filtering
-        
-        // Check if activeView is a label ID
         const isLabelView = labels.some(l => l.id === activeView);
 
         if (isLabelView) {
-        filtered = filtered.filter(t => t.labelIds?.includes(activeView) && !t.completed);
+            filtered = filtered.filter(t => t.labelIds?.includes(activeView) && !t.completed);
         } else {
-        switch (activeView) {
-            case 'inbox':
-            filtered = filtered.filter(t => t.listId === 'inbox' && !t.completed);
-            break;
-            case 'today':
-            filtered = filtered.filter(t => isToday(t.dueDate) && !t.completed);
-            break;
-            case 'next7':
-            filtered = filtered.filter(t => isNext7Days(t.dueDate) && !t.completed);
-            break;
-            case 'upcoming':
-            filtered = filtered.filter(t => t.dueDate && new Date(t.dueDate) > new Date() && !t.completed);
-            break;
-            case 'all':
-            break;
-            default:
-            // Custom List View
-            filtered = filtered.filter(t => t.listId === activeView && !t.completed);
-        }
+            switch (activeView) {
+                case 'inbox':
+                    filtered = filtered.filter(t => t.listId === 'inbox' && !t.completed);
+                    break;
+                case 'today':
+                    filtered = filtered.filter(t => isToday(t.dueDate) && !t.completed);
+                    break;
+                case 'next7':
+                    filtered = filtered.filter(t => isNext7Days(t.dueDate) && !t.completed);
+                    break;
+                case 'upcoming':
+                    filtered = filtered.filter(t => t.dueDate && new Date(t.dueDate) > new Date() && !t.completed);
+                    break;
+                case 'all':
+                    break;
+                default:
+                    filtered = filtered.filter(t => t.listId === activeView && !t.completed);
+            }
         }
     }
 
-    // Sorting Logic
     const prioOrder = { [Priority.High]: 3, [Priority.Medium]: 2, [Priority.Low]: 1, [Priority.None]: 0 };
 
-    // Use a copy to sort to avoid mutating state reference, and add explicit types to callback arguments
     return [...filtered].sort((a: Task, b: Task) => {
-      // Always put completed tasks at the bottom if the view shows them (mostly handled by filtering, but good for 'all' view completeness)
       if (a.completed !== b.completed) return a.completed ? 1 : -1;
 
       switch (sortBy) {
         case 'dueDate':
-          // Earliest due date first
           if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-          // Items with due date come before items without
           if (a.dueDate) return -1;
           if (b.dueDate) return 1;
           return 0;
         
         case 'priority':
-          // High to Low
           if (prioOrder[b.priority] !== prioOrder[a.priority]) {
             return prioOrder[b.priority] - prioOrder[a.priority];
           }
           return 0;
         
         case 'added':
-          // Newest first
           return b.createdAt - a.createdAt;
 
         case 'alphabetical':
-          // A-Z
           return a.title.localeCompare(b.title);
 
         case 'smart':
         default:
-          // 1. Priority
           if (prioOrder[b.priority] !== prioOrder[a.priority]) {
             return prioOrder[b.priority] - prioOrder[a.priority];
           }
-          // 2. Due Date (Earliest first)
           if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
           if (a.dueDate) return -1;
           if (b.dueDate) return 1;
